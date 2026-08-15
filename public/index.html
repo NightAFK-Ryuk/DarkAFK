@@ -514,6 +514,8 @@
       });
     }
 
+    let activeBotUsernames = new Set();
+
     async function fetchStatuses() {
       try {
         const res = await fetch('/api/status');
@@ -522,46 +524,71 @@
 
         if (bots.length === 0) {
           container.innerHTML = '<p class="muted">No active bot instances deployed.</p>';
+          activeBotUsernames.clear();
           return;
         }
 
-        container.innerHTML = bots.map(b => `
-          <div class="bot-card">
-            <h3>Bot: ${b.username}</h3>
-            <p>Server: <b>${b.host}</b></p>
-            <p>Uptime: <b>${b.uptime}</b></p>
-            <p>Proxy: <b>${b.proxy}</b></p>
-            <p>Health: <b>${b.health}/20</b> | Food: <b>${b.food}/20</b> | Ping: <b>${b.ping} ms</b></p>
-            <p>HFFA Mode: <b>${b.hffaActive ? 'Active' : 'Disabled'}</b></p>
-            
-            <div style="margin-top: 12px;">
-              <label style="font-size: 0.8rem; color: #38bdf8;">Live In-Game Chat Feed</label>
-              <div class="chat-box" id="chatbox-${b.username}">
-                ${b.chatLogs.length ? b.chatLogs.join('<br>') : '<span class="muted">Waiting for chat events...</span>'}
+        const currentBotUsernames = new Set(bots.map(b => b.username));
+        const listChanged = 
+          activeBotUsernames.size !== currentBotUsernames.size ||
+          ![...currentBotUsernames].every(u => activeBotUsernames.has(u));
+
+        if (listChanged || container.querySelector('.muted')) {
+          activeBotUsernames = currentBotUsernames;
+          container.innerHTML = bots.map(b => `
+            <div class="bot-card" id="bot-card-${b.username}">
+              <h3>Bot: ${b.username}</h3>
+              <p>Server: <b>${b.host}</b></p>
+              <p>Uptime: <span id="uptime-${b.username}"><b>${b.uptime}</b></span></p>
+              <p>Proxy: <b>${b.proxy}</b></p>
+              <p>Health: <span id="health-${b.username}"><b>${b.health}</b></span>/20 | Food: <span id="food-${b.username}"><b>${b.food}</b></span>/20 | Ping: <span id="ping-${b.username}"><b>${b.ping}</b></span> ms</p>
+              <p>HFFA Mode: <b>${b.hffaActive ? 'Active' : 'Disabled'}</b></p>
+              
+              <div style="margin-top: 12px;">
+                <label style="font-size: 0.8rem; color: #38bdf8;">Live In-Game Chat Feed</label>
+                <div class="chat-box" id="chatbox-${b.username}">
+                  ${b.chatLogs.length ? b.chatLogs.join('<br>') : '<span class="muted">Waiting for chat events...</span>'}
+                </div>
               </div>
+
+              <div style="margin-top: 12px; display: flex; gap: 8px;">
+                <input type="text" id="chat-input-${b.username}" placeholder="Send chat..." style="font-size: 0.9rem; padding: 8px;">
+                <button onclick="sendChat('${b.username}')" class="btn glow-btn-success" style="width: 80px; margin-top: 0; padding: 8px;">Send</button>
+              </div>
+
+              <div class="movement-grid" style="margin-top: 10px;">
+                <button onclick="sendMove('${b.username}', 'forward')" class="btn" style="padding: 8px;">Forward</button>
+                <button onclick="sendMove('${b.username}', 'back')" class="btn" style="padding: 8px;">Back</button>
+                <button onclick="sendMove('${b.username}', 'left')" class="btn" style="padding: 8px;">Left</button>
+                <button onclick="sendMove('${b.username}', 'right')" class="btn" style="padding: 8px;">Right</button>
+                <button onclick="sendMove('${b.username}', 'jump')" class="btn full-span" style="padding: 8px;">Jump</button>
+              </div>
+
+              <button onclick="disconnectBot('${b.username}')" class="btn glow-btn-danger" style="margin-top: 12px; padding: 8px;">Disconnect Instance</button>
             </div>
+          `).join('');
+        } else {
+          // Update values dynamically without destroying user input fields or dismissing mobile keyboard
+          bots.forEach(b => {
+            const uptimeEl = document.getElementById(`uptime-${b.username}`);
+            const healthEl = document.getElementById(`health-${b.username}`);
+            const foodEl = document.getElementById(`food-${b.username}`);
+            const pingEl = document.getElementById(`ping-${b.username}`);
+            const chatBox = document.getElementById(`chatbox-${b.username}`);
 
-            <div style="margin-top: 12px; display: flex; gap: 8px;">
-              <input type="text" id="chat-input-${b.username}" placeholder="Send chat..." style="font-size: 0.9rem; padding: 8px;">
-              <button onclick="sendChat('${b.username}')" class="btn glow-btn-success" style="width: 80px; margin-top: 0; padding: 8px;">Send</button>
-            </div>
-
-            <div class="movement-grid" style="margin-top: 10px;">
-              <button onclick="sendMove('${b.username}', 'forward')" class="btn" style="padding: 8px;">Forward</button>
-              <button onclick="sendMove('${b.username}', 'back')" class="btn" style="padding: 8px;">Back</button>
-              <button onclick="sendMove('${b.username}', 'left')" class="btn" style="padding: 8px;">Left</button>
-              <button onclick="sendMove('${b.username}', 'right')" class="btn" style="padding: 8px;">Right</button>
-              <button onclick="sendMove('${b.username}', 'jump')" class="btn full-span" style="padding: 8px;">Jump</button>
-            </div>
-
-            <button onclick="disconnectBot('${b.username}')" class="btn glow-btn-danger" style="margin-top: 12px; padding: 8px;">Disconnect Instance</button>
-          </div>
-        `).join('');
-
-        bots.forEach(b => {
-          const box = document.getElementById(`chatbox-${b.username}`);
-          if (box) box.scrollTop = box.scrollHeight;
-        });
+            if (uptimeEl) uptimeEl.innerHTML = `<b>${b.uptime}</b>`;
+            if (healthEl) healthEl.innerHTML = `<b>${b.health}</b>`;
+            if (foodEl) foodEl.innerHTML = `<b>${b.food}</b>`;
+            if (pingEl) pingEl.innerHTML = `<b>${b.ping}</b>`;
+            if (chatBox) {
+              const newContent = b.chatLogs.length ? b.chatLogs.join('<br>') : '<span class="muted">Waiting for chat events...</span>';
+              if (chatBox.innerHTML !== newContent) {
+                chatBox.innerHTML = newContent;
+                chatBox.scrollTop = chatBox.scrollHeight;
+              }
+            }
+          });
+        }
       } catch (err) {
         console.error('Failed to retrieve statuses:', err);
       }
