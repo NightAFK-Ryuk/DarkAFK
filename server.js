@@ -167,21 +167,20 @@ function startBotInstance(options) {
   allBots[username] = options;
   saveBotsDb(allBots);
 
-  // Reliable chat capture
-  bot.on('message', (jsonMsg) => {
+  // Reliable plain-text chat capture using messagestr event
+  bot.on('messagestr', (message) => {
     try {
-      const textMessage = typeof jsonMsg.toMotd === 'function' ? jsonMsg.toMotd() : jsonMsg.toString();
-      if (textMessage && textMessage.trim().length > 0) {
-        instanceData.chatLogs.push(textMessage);
+      if (message && message.trim().length > 0) {
+        instanceData.chatLogs.push(message);
         if (instanceData.chatLogs.length > 50) instanceData.chatLogs.shift();
       }
     } catch (e) {
-      console.error('Message parse error:', e.message);
+      console.error('Message capture error:', e.message);
     }
   });
 
   bot.once('spawn', () => {
-    console.log(`[Bot ${username}] Successfully connected and spawned.`);
+    console.log(`[Bot ${username}] Successfully connected and spawned into ${host}:${port}`);
 
     if (password) {
       setTimeout(() => {
@@ -355,10 +354,10 @@ app.get('/api/status', (req, res) => {
       if (typeof bot.food === 'number') {
         food = bot.food.toFixed(1);
       }
-      if (bot.players && bot.players[username] && typeof bot.players[username].ping === 'number') {
-        ping = bot.players[username].ping;
-      } else if (bot.player && typeof bot.player.ping === 'number') {
+      if (bot.player && typeof bot.player.ping === 'number') {
         ping = bot.player.ping;
+      } else if (bot.players && bot.players[username] && typeof bot.players[username].ping === 'number') {
+        ping = bot.players[username].ping;
       }
     }
 
