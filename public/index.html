@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Dark AFK Infrastructure</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: #05070c;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 30px;
+      scroll-behavior: smooth;
+    }
+
+    .glow-bg {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 800px; height: 800px;
+      background: radial-gradient(circle, rgba(14, 165, 233, 0.08) 0%, rgba(5, 7, 12, 0) 70%);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 50px;
+      border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+      padding-bottom: 20px;
+    }
+
+    .neon-title {
+      font-size: 2.5rem;
+      font-weight: 800;
+      letter-spacing: 3px;
+      color: #38bdf8;
+      text-shadow: 0 0 15px rgba(56, 189, 248, 0.5);
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.95rem;
+      color: #34d399;
+    }
+
+    .dot {
+      width: 10px; height: 10px;
+      background: #34d399;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #34d399;
+    }
+
+    .hero-section {
+      text-align: center;
+      padding: 60px 20px;
+      margin-bottom: 50px;
+    }
+
+    .hero-section h1 {
+      font-size: 3rem;
+      color: #38bdf8;
+      margin-bottom: 20px;
+    }
+
+    .hero-section p {
+      font-size: 1.15rem;
+      color: #94a3b8;
+      max-width: 800px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    .card {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 30px;
+      margin-bottom: 30px;
+      transition: transform 0.3s ease;
+    }
+
+    .card:hover {
+      border-color: rgba(56, 189, 248, 0.5);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 25px;
+      margin-bottom: 30px;
+    }
+
+    .full-width { grid-column: 1 / -1; }
+
+    h2 {
+      font-size: 1.35rem;
+      margin-bottom: 20px;
+      color: #38bdf8;
+    }
+
+    .input-group {
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.9rem;
+      color: #94a3b8;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 12px;
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 1rem;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: #38bdf8;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+      background: #334155;
+      color: #fff;
+      transition: 0.2s;
+      font-size: 1rem;
+      margin-top: 5px;
+    }
+
+    .glow-btn {
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+    }
+    .glow-btn:hover { box-shadow: 0 0 25px rgba(56, 189, 248, 0.7); }
+
+    .glow-btn-success {
+      background: linear-gradient(135deg, #059669, #34d399);
+      box-shadow: 0 0 15px rgba(52, 211, 153, 0.4);
+    }
+
+    .glow-btn-danger {
+      background: linear-gradient(135deg, #dc2626, #f87171);
+      box-shadow: 0 0 15px rgba(248, 113, 113, 0.4);
+    }
+
+    .fab {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      width: 65px; height: 65px;
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      color: #fff;
+      border-radius: 50%;
+      border: none;
+      font-size: 2.2rem;
+      cursor: pointer;
+      box-shadow: 0 0 25px rgba(56, 189, 248, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      transition: transform 0.2s;
+    }
+    .fab:hover { transform: scale(1.08); }
+
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(5, 7, 12, 0.85);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+    }
+
+    .modal-content {
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      border-radius: 16px;
+      padding: 30px;
+      width: 100%;
+      max-width: 500px;
+      box-shadow: 0 0 30px rgba(56, 189, 248, 0.2);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .close-modal {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 1.5rem;
+      cursor: pointer;
+    }
+
+    .movement-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .full-span { grid-column: span 2; }
+
+    .bots-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 20px;
+      margin-top: 15px;
+    }
+
+    .bot-card {
+      background: rgba(30, 41, 59, 0.6);
+      border-radius: 12px;
+      padding: 20px;
+      border-left: 4px solid #34d399;
+      border: 1px solid rgba(52, 211, 153, 0.2);
+    }
+
+    .bot-card h3 {
+      font-size: 1.2rem;
+      margin-bottom: 10px;
+      color: #34d399;
+    }
+
+    .bot-card p {
+      font-size: 0.9rem;
+      color: #cbd5e1;
+      margin-bottom: 5px;
+    }
+
+    .chat-box {
+      background: rgba(10, 15, 25, 0.8);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      border-radius: 8px;
+      padding: 10px;
+      height: 120px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #38bdf8;
+      margin-top: 12px;
+    }
+
+    .muted { color: #64748b; font-style: italic; }
+
+    @media (max-width: 768px) {
+      .grid { grid-template-columns: 1fr; }
+      body { padding: 15px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="glow-bg"></div>
+
+  <div class="container">
+    <header>
+      <h1 class="neon-title">DARK AFK</h1>
+      <div class="status-indicator">
+        <div class="dot"></div>
+        <span>Infrastructure Active</span>
+      </div>
+    </header>
+
+    <div class="hero-section card full-width">
+      <h1>Welcome to Dark AFK</h1>
+      <p>The ultimate high-performance, 24/7 Minecraft automation and AFK infrastructure. Maintain absolute uptime, route connections securely through advanced SOCKS5 proxy networks, and deploy automated instances with precision control from a unified operational dashboard.</p>
+    </div>
+
+    <div class="card full-width">
+      <h2>Master All Bot Control Panel</h2>
+      <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 15px;">Execute commands across all database instances currently linked to your session.</p>
+      <div class="grid" style="margin-bottom: 0;">
+        <div>
+          <div class="input-group">
+            <label>Broadcast Message</label>
+            <input type="text" id="bulk-chat-msg" placeholder="Message to broadcast">
+          </div>
+          <button onclick="sendBulkChat()" class="btn glow-btn-success">Broadcast Chat</button>
+        </div>
+        <div>
+          <label>Bulk Spatial Controls</label>
+          <div class="movement-grid" style="margin-top: 5px;">
+            <button onclick="sendBulkMove('forward')" class="btn">Forward</button>
+            <button onclick="sendBulkMove('back')" class="btn">Back</button>
+            <button onclick="sendBulkMove('left')" class="btn">Left</button>
+            <button onclick="sendBulkMove('right')" class="btn">Right</button>
+            <button onclick="sendBulkMove('jump')" class="btn full-span">Jump</button>
+          </div>
+          <button onclick="disconnectAllBots()" class="btn glow-btn-danger" style="margin-top: 15px;">Disconnect All Instances</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card full-width">
+      <h2>Active AFK Bot Fleet and Telemetry</h2>
+      <div id="bots-container" class="bots-grid">
+        <p class="muted">No active bot instances deployed.</p>
+      </div>
+    </div>
+  </div>
+
+  <button class="fab" onclick="openModal()">+</button>
+
+  <div id="deploy-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Deploy New AFK Bot</h2>
+        <button class="close-modal" onclick="closeModal()">X</button>
+      </div>
+      <form id="spawn-form">
+        <div class="input-group">
+          <label>Server IP and Port</label>
+          <input type="text" id="server" placeholder="play.server.com:25565" required>
+        </div>
+        <div class="input-group">
+          <label>Minecraft Password (For /register and /login)</label>
+          <input type="password" id="password" placeholder="Account Password">
+        </div>
+        <div class="input-group">
+          <label>Bot Username (AI Generator)</label>
+          <div style="display: flex; gap: 10px;">
+            <input type="text" id="username" placeholder="Generated Username" required readonly>
+            <button type="button" onclick="openGenerator()" class="btn glow-btn" style="width: 140px; margin-top: 0;">Generate</button>
+          </div>
+        </div>
+        <div class="input-group">
+          <label>Proxy Configuration (host:port:user:pass)</label>
+          <input type="text" id="proxy" placeholder="Leave blank for direct connection">
+        </div>
+        <div class="input-group">
+          <label>Client Version</label>
+          <input type="text" id="version" value="1.8.9">
+        </div>
+
+        <div style="border-top: 1px solid rgba(56, 189, 248, 0.2); padding-top: 15px; margin-top: 15px;">
+          <div class="input-group">
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+              <input type="checkbox" id="hffaEnabled" style="width: auto;"> Enable HFFA (HardcoreFFA Stats Boost System)
+            </label>
+          </div>
+          <div class="input-group">
+            <label>HFFA Target Username to Follow</label>
+            <input type="text" id="hffaTarget" placeholder="TargetPlayerName">
+          </div>
+        </div>
+
+        <button type="submit" class="btn glow-btn" style="margin-top: 15px;">Deploy Instance</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="gen-modal" class="modal-overlay">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <h2>AI Username Generator</h2>
+        <button class="close-modal" onclick="closeGenModal()">X</button>
+      </div>
+      <div class="input-group">
+        <label>Letters Count (1 - 12)</label>
+        <input type="number" id="gen-letters" min="1" max="12" value="7">
+      </div>
+      <div class="input-group">
+        <label>Numbers Count (1 - 4)</label>
+        <input type="number" id="gen-numbers" min="1" max="4" value="2">
+      </div>
+      <div id="gen-error" style="color: #f87171; font-size: 0.85rem; margin-bottom: 10px;"></div>
+      <button onclick="executeGeneration()" class="btn glow-btn">Generate and Apply</button>
+    </div>
+  </div>
+
+  <script>
+    function openModal() { document.getElementById('deploy-modal').style.display = 'flex'; }
+    function closeModal() { document.getElementById('deploy-modal').style.display = 'none'; }
+    function openGenerator() { document.getElementById('gen-modal').style.display = 'flex'; }
+    function closeGenModal() { document.getElementById('gen-modal').style.display = 'none'; }
+
+    async function executeGeneration() {
+      const letters = document.getElementById('gen-letters').value;
+      const numbers = document.getElementById('gen-numbers').value;
+      const errorDiv = document.getElementById('gen-error');
+      errorDiv.innerText = '';
+
+      if (parseInt(letters) + parseInt(numbers) > 12) {
+        errorDiv.innerText = 'Max limit is 12';
+        return;
+      }
+
+      const res = await fetch('/api/generate-username', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ letters, numbers })
+      });
+      const data = await res.json();
+      if (data.error) {
+        errorDiv.innerText = data.error;
+      } else {
+        document.getElementById('username').value = data.username;
+        closeGenModal();
+      }
+    }
+
+    document.getElementById('spawn-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const server = document.getElementById('server').value;
+      const password = document.getElementById('password').value;
+      const username = document.getElementById('username').value;
+      const proxy = document.getElementById('proxy').value;
+      const version = document.getElementById('version').value;
+      const hffaEnabled = document.getElementById('hffaEnabled').checked;
+      const hffaTarget = document.getElementById('hffaTarget').value;
+
+      const res = await fetch('/api/spawn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ server, password, username, proxy, version, hffaEnabled, hffaTarget })
+      });
+
+      const data = await res.json();
+      if (data.error) alert(data.error);
+      else {
+        closeModal();
+        fetchStatuses();
+      }
+    });
+
+    async function sendBulkChat() {
+      const message = document.getElementById('bulk-chat-msg').value;
+      if (!message) return;
+      await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'all', message })
+      });
+      document.getElementById('bulk-chat-msg').value = '';
+    }
+
+    async function sendBulkMove(direction) {
+      await fetch('/api/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'all', direction, duration: 1000 })
+      });
+    }
+
+    async function disconnectAllBots() {
+      if (!confirm('Are you sure you want to disconnect all active database instances?')) return;
+      await fetch('/api/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'all' })
+      });
+      fetchStatuses();
+    }
+
+    async function disconnectBot(username) {
+      await fetch('/api/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username })
+      });
+      fetchStatuses();
+    }
+
+    async function sendChat(username) {
+      const input = document.getElementById(`chat-input-${username}`);
+      const message = input.value;
+      if (!message) return;
+      await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, message })
+      });
+      input.value = '';
+    }
+
+    async function sendMove(username, direction) {
+      await fetch('/api/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, direction, duration: 1000 })
+      });
+    }
+
+    async function fetchStatuses() {
+      try {
+        const res = await fetch('/api/status');
+        const bots = await res.json();
+        const container = document.getElementById('bots-container');
+
+        if (bots.length === 0) {
+          container.innerHTML = '<p class="muted">No active bot instances deployed.</p>';
+          return;
+        }
+
+        container.innerHTML = bots.map(b => `
+          <div class="bot-card">
+            <h3>Bot: ${b.username}</h3>
+            <p>Server: <b>${b.host}</b></p>
+            <p>Uptime: <b>${b.uptime}</b></p>
+            <p>Proxy: <b>${b.proxy}</b></p>
+            <p>Health: <b>${b.health}/20</b> | Food: <b>${b.food}/20</b> | Ping: <b>${b.ping} ms</b></p>
+            <p>HFFA Mode: <b>${b.hffaActive ? 'Active (Render 16)' : 'Disabled'}</b></p>
+            
+            <div style="margin-top: 12px;">
+              <label style="font-size: 0.8rem; color: #38bdf8;">Live In-Game Chat Feed</label>
+              <div class="chat-box" id="chatbox-${b.username}">
+                ${b.chatLogs.length ? b.chatLogs.join('<br>') : '<span class="muted">Waiting for chat events...</span>'}
+              </div>
+            </div>
+
+            <div style="margin-top: 12px; display: flex; gap: 8px;">
+              <input type="text" id="chat-input-${b.username}" placeholder="Send chat..." style="font-size: 0.9rem; padding: 8px;">
+              <button onclick="sendChat('${b.username}')" class="btn glow-btn-success" style="width: 80px; margin-top: 0; padding: 8px;">Send</button>
+            </div>
+
+            <div class="movement-grid" style="margin-top: 10px;">
+              <button onclick="sendMove('${b.username}', 'forward')" class="btn" style="padding: 8px;">Forward</button>
+              <button onclick="sendMove('${b.username}', 'back')" class="btn" style="padding: 8px;">Back</button>
+              <button onclick="sendMove('${b.username}', 'left')" class="btn" style="padding: 8px;">Left</button>
+              <button onclick="sendMove('${b.username}', 'right')" class="btn" style="padding: 8px;">Right</button>
+              <button onclick="sendMove('${b.username}', 'jump')" class="btn full-span" style="padding: 8px;">Jump</button>
+            </div>
+
+            <button onclick="disconnectBot('${b.username}')" class="btn glow-btn-danger" style="margin-top: 12px; padding: 8px;">Disconnect Instance</button>
+          </div>
+        `).join('');
+
+        bots.forEach(b => {
+          const box = document.getElementById(`chatbox-${b.username}`);
+          if (box) box.scrollTop = box.scrollHeight;
+        });
+      } catch (err) {
+        console.error('Failed to retrieve statuses:', err);
+      }
+    }
+
+    setInterval(fetchStatuses, 3000);
+    fetchStatuses();
+  </script>
+</body>
+  </html>
+
