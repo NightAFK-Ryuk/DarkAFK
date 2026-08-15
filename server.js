@@ -107,7 +107,7 @@ function formatUptime(ms) {
 }
 
 // ==========================================
-// BOT ENGINE & AUTH SUBSYSTEM
+// BOT ENGINE & CHAT TELEMETRY SUBSYSTEM
 // ==========================================
 function startBotInstance(options) {
   const { username, password, proxyInput, mcVersion, host, port, hffaEnabled, hffaTarget } = options;
@@ -154,16 +154,18 @@ function startBotInstance(options) {
   allBots[username] = options;
   saveBotsDb(allBots);
 
-  bot.on('chat', (user, message) => {
-    const formatted = `[${user}] ${message}`;
-    instanceData.chatLogs.push(formatted);
-    if (instanceData.chatLogs.length > 50) instanceData.chatLogs.shift();
+  // Global message listener capturing all chat lines, system prompts, and announcements
+  bot.on('message', (jsonMsg) => {
+    const textMessage = jsonMsg.toString();
+    if (textMessage && textMessage.trim().length > 0) {
+      instanceData.chatLogs.push(textMessage);
+      if (instanceData.chatLogs.length > 50) instanceData.chatLogs.shift();
+    }
   });
 
   bot.once('spawn', () => {
     console.log(`[Bot ${username}] Successfully connected and spawned.`);
 
-    // Execute authentication commands upon joining if password is provided
     if (password) {
       setTimeout(() => {
         if (bot) bot.chat(`/register ${password} ${password}`);
@@ -173,7 +175,6 @@ function startBotInstance(options) {
       }, 3500);
     }
 
-    // Standard Anti-AFK loop
     if (instanceData.afkInterval) clearInterval(instanceData.afkInterval);
     instanceData.afkInterval = setInterval(() => {
       if (bot && bot.entity) {
@@ -184,7 +185,6 @@ function startBotInstance(options) {
       }
     }, 40000);
 
-    // HFFA Protocol Implementation
     if (hffaEnabled) {
       setTimeout(async () => {
         try {
@@ -240,7 +240,7 @@ function scheduleReconnect(options) {
     if (instanceData.reconnectTimer) clearTimeout(instanceData.reconnectTimer);
     instanceData.reconnectTimer = setTimeout(() => {
       if (activeBots.has(username)) startBotInstance(options);
-    }, 25000); // 25 seconds delay as requested
+    }, 25000);
   }
 }
 
