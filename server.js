@@ -167,9 +167,10 @@ function startBotInstance(options) {
   allBots[username] = options;
   saveBotsDb(allBots);
 
+  // Reliable chat capture
   bot.on('message', (jsonMsg) => {
     try {
-      const textMessage = jsonMsg.toString();
+      const textMessage = typeof jsonMsg.toMotd === 'function' ? jsonMsg.toMotd() : jsonMsg.toString();
       if (textMessage && textMessage.trim().length > 0) {
         instanceData.chatLogs.push(textMessage);
         if (instanceData.chatLogs.length > 50) instanceData.chatLogs.shift();
@@ -342,13 +343,32 @@ app.get('/api/status', (req, res) => {
   const statuses = [];
   activeBots.forEach((data, username) => {
     const { bot, startTime, options, chatLogs } = data;
+    
+    let health = 'N/A';
+    let food = 'N/A';
+    let ping = 'N/A';
+
+    if (bot) {
+      if (typeof bot.health === 'number') {
+        health = bot.health.toFixed(1);
+      }
+      if (typeof bot.food === 'number') {
+        food = bot.food.toFixed(1);
+      }
+      if (bot.players && bot.players[username] && typeof bot.players[username].ping === 'number') {
+        ping = bot.players[username].ping;
+      } else if (bot.player && typeof bot.player.ping === 'number') {
+        ping = bot.player.ping;
+      }
+    }
+
     statuses.push({
       username,
       host: `${options.host}:${options.port}`,
       uptime: formatUptime(Date.now() - startTime),
-      health: bot && bot.health !== undefined ? bot.health.toFixed(1) : 'N/A',
-      food: bot && bot.food !== undefined ? bot.food.toFixed(1) : 'N/A',
-      ping: bot && bot.player ? bot.player.ping : 'N/A',
+      health,
+      food,
+      ping,
       proxy: options.proxyInput ? options.proxyInput.split(':')[0] : 'Direct Connection',
       hffaActive: !!options.hffaEnabled,
       chatLogs: chatLogs.slice(-15)
