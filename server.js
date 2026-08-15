@@ -4,6 +4,15 @@ const fs = require('fs');
 const mineflayer = require('mineflayer');
 const { SocksClient } = require('socks');
 
+// Crash guards for Railway container stability
+process.on('uncaughtException', (err) => {
+  console.error('CRITICAL UNCAUGHT EXCEPTION:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('CRITICAL UNHANDLED REJECTION:', reason);
+});
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const BOTS_FILE = './bots_db.json';
@@ -12,20 +21,23 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Active bots memory map: username -> { bot, startTime, afkInterval, hffaInterval, followInterval, reconnectTimer, chatLogs, options }
 const activeBots = new Map();
 
 function loadBotsDb() {
   try {
     if (fs.existsSync(BOTS_FILE)) return JSON.parse(fs.readFileSync(BOTS_FILE, 'utf8'));
-  } catch (err) { console.error('Error loading bots db:', err); }
+  } catch (err) {
+    console.error('Error loading bots db:', err);
+  }
   return {};
 }
 
 function saveBotsDb(data) {
   try {
     fs.writeFileSync(BOTS_FILE, JSON.stringify(data, null, 2));
-  } catch (err) { console.error('Error saving bots db:', err); }
+  } catch (err) {
+    console.error('Error saving bots db:', err);
+  }
 }
 
 function isUsernameTaken(username) {
@@ -94,7 +106,11 @@ function createSocksConnect(proxyConfig, targetHost, targetPort) {
         clientInstance.emit('connect');
       })
       .catch((err) => {
-        clientInstance.emit('error', new Error(`SOCKS5 Error: ${err.message}`));
+        try {
+          clientInstance.emit('error', new Error(`SOCKS5 Error: ${err.message}`));
+        } catch (e) {
+          console.error('Socks error emission failed:', e.message);
+        }
       });
   };
 }
@@ -106,9 +122,6 @@ function formatUptime(ms) {
   return `${hours}h ${minutes}m ${seconds}s`;
 }
 
-// ==========================================
-// BOT ENGINE & CHAT TELEMETRY SUBSYSTEM
-// ==========================================
 function startBotInstance(options) {
   const { username, password, proxyInput, mcVersion, host, port, hffaEnabled, hffaTarget } = options;
   const proxyConfig = parseProxy(proxyInput);
@@ -154,12 +167,15 @@ function startBotInstance(options) {
   allBots[username] = options;
   saveBotsDb(allBots);
 
-  // Global message listener capturing all chat lines, system prompts, and announcements
   bot.on('message', (jsonMsg) => {
-    const textMessage = jsonMsg.toString();
-    if (textMessage && textMessage.trim().length > 0) {
-      instanceData.chatLogs.push(textMessage);
-      if (instanceData.chatLogs.length > 50) instanceData.chatLogs.shift();
+    try {
+      const textMessage = jsonMsg.toString();
+      if (textMessage && textMessage.trim().length > 0) {
+        instanceData.chatLogs.push(textMessage);
+        if (instanceData.chatLogs.length > 50) instanceData.chatLogs.shift();
+      }
+    } catch (e) {
+      console.error('Message parse error:', e.message);
     }
   });
 
@@ -168,20 +184,22 @@ function startBotInstance(options) {
 
     if (password) {
       setTimeout(() => {
-        if (bot) bot.chat(`/register ${password} ${password}`);
+        if (bot && bot.entity) bot.chat(`/register ${password} ${password}`);
       }, 1500);
       setTimeout(() => {
-        if (bot) bot.chat(`/login ${password}`);
+        if (bot && bot.entity) bot.chat(`/login ${password}`);
       }, 3500);
     }
 
     if (instanceData.afkInterval) clearInterval(instanceData.afkInterval);
     instanceData.afkInterval = setInterval(() => {
       if (bot && bot.entity) {
-        bot.swingArm('right');
-        const yaw = (Math.random() - 0.5) * 0.4;
-        const pitch = (Math.random() - 0.5) * 0.4;
-        bot.look(bot.entity.yaw + yaw, bot.entity.pitch + pitch, false);
+        try {
+          bot.swingArm('right');
+          const yaw = (Math.random() - 0.5) * 0.4;
+          const pitch = (Math.random() - 0.5) * 0.4;
+          bot.look(bot.entity.yaw + yaw, bot.entity.pitch + pitch, false);
+        } catch (e) {}
       }
     }, 40000);
 
@@ -190,41 +208,41 @@ function startBotInstance(options) {
         try {
           const armorSlots = ['head', 'torso', 'legs', 'feet'];
           for (const slot of armorSlots) {
-            await bot.unequip(slot).catch(() => {});
+            if (bot) await bot.unequip(slot).catch(() => {});
           }
-        } catch (e) {
-          console.error(`[HFFA ${username}] Armor strip error:`, e.message);
-        }
+        } catch (e) {}
       }, 3000);
 
       if (instanceData.hffaInterval) clearInterval(instanceData.hffaInterval);
       instanceData.hffaInterval = setInterval(() => {
-        if (bot) bot.chat('/play hardcoreffa');
+        if (bot && bot.entity) bot.chat('/play hardcoreffa');
       }, 60000);
 
       if (hffaTarget) {
         if (instanceData.followInterval) clearInterval(instanceData.followInterval);
         instanceData.followInterval = setInterval(() => {
-          if (bot && bot.players[hffaTarget] && bot.players[hffaTarget].entity) {
-            const targetEntity = bot.players[hffaTarget].entity;
-            bot.lookAt(targetEntity.position.offset(0, targetEntity.height, 0));
-            bot.setControlState('forward', true);
-            if (bot.entity.position.distanceTo(targetEntity.position) < 3) {
+          try {
+            if (bot && bot.entity && bot.players[hffaTarget] && bot.players[hffaTarget].entity) {
+              const targetEntity = bot.players[hffaTarget].entity;
+              bot.lookAt(targetEntity.position.offset(0, targetEntity.height, 0));
+              bot.setControlState('forward', true);
+              if (bot.entity.position.distanceTo(targetEntity.position) < 3) {
+                bot.setControlState('forward', false);
+              }
+            } else if (bot) {
               bot.setControlState('forward', false);
             }
-          } else {
-            bot.setControlState('forward', false);
-          }
+          } catch (e) {}
         }, 1000);
       }
     }
   });
 
-  const handleDisconnect = () => {
+  const handleDisconnect = (err) => {
     if (instanceData.afkInterval) clearInterval(instanceData.afkInterval);
     if (instanceData.hffaInterval) clearInterval(instanceData.hffaInterval);
     if (instanceData.followInterval) clearInterval(instanceData.followInterval);
-    console.log(`[Bot ${username}] Disconnected. Reconnecting in 25 seconds...`);
+    console.log(`[Bot ${username}] Disconnected. Reason:`, err ? err.message || err : 'Unknown');
     scheduleReconnect(options);
   };
 
@@ -244,9 +262,6 @@ function scheduleReconnect(options) {
   }
 }
 
-// ==========================================
-// API ROUTES
-// ==========================================
 app.post('/api/generate-username', (req, res) => {
   const { letters, numbers } = req.body;
   const lCount = parseInt(letters, 10) || 0;
@@ -294,12 +309,12 @@ app.post('/api/disconnect', (req, res) => {
   const { username } = req.body;
 
   if (username === 'all') {
-    activeBots.forEach((data, name) => {
+    activeBots.forEach((data) => {
       if (data.reconnectTimer) clearTimeout(data.reconnectTimer);
       if (data.afkInterval) clearInterval(data.afkInterval);
       if (data.hffaInterval) clearInterval(data.hffaInterval);
       if (data.followInterval) clearInterval(data.followInterval);
-      if (data.bot) data.bot.quit();
+      if (data.bot) try { data.bot.quit(); } catch(e){}
     });
     activeBots.clear();
     saveBotsDb({});
@@ -313,7 +328,7 @@ app.post('/api/disconnect', (req, res) => {
   if (botData.afkInterval) clearInterval(botData.afkInterval);
   if (botData.hffaInterval) clearInterval(botData.hffaInterval);
   if (botData.followInterval) clearInterval(botData.followInterval);
-  if (botData.bot) botData.bot.quit();
+  if (botData.bot) try { botData.bot.quit(); } catch(e){}
   activeBots.delete(username);
 
   const allBots = loadBotsDb();
@@ -331,8 +346,8 @@ app.get('/api/status', (req, res) => {
       username,
       host: `${options.host}:${options.port}`,
       uptime: formatUptime(Date.now() - startTime),
-      health: bot && bot.health ? bot.health.toFixed(1) : 'N/A',
-      food: bot && bot.food ? bot.food.toFixed(1) : 'N/A',
+      health: bot && bot.health !== undefined ? bot.health.toFixed(1) : 'N/A',
+      food: bot && bot.food !== undefined ? bot.food.toFixed(1) : 'N/A',
       ping: bot && bot.player ? bot.player.ping : 'N/A',
       proxy: options.proxyInput ? options.proxyInput.split(':')[0] : 'Direct Connection',
       hffaActive: !!options.hffaEnabled,
@@ -342,32 +357,15 @@ app.get('/api/status', (req, res) => {
   res.json(statuses);
 });
 
-app.post('/api/bulk-action', (req, res) => {
-  const { action, value } = req.body;
-  
-  activeBots.forEach((data, username) => {
-    if (!data.bot) return;
-    if (action === 'chat') {
-      data.bot.chat(value);
-    } else if (action === 'move') {
-      const { direction, duration = 1000 } = value;
-      data.bot.setControlState(direction, true);
-      setTimeout(() => data.bot.setControlState(direction, false), duration);
-    }
-  });
-
-  res.json({ success: true, message: 'Bulk action executed across all database instances.' });
-});
-
 app.post('/api/chat', (req, res) => {
   const { username, message } = req.body;
   if (username === 'all') {
-    activeBots.forEach((data) => { if (data.bot) data.bot.chat(message); });
+    activeBots.forEach((data) => { if (data.bot) try { data.bot.chat(message); } catch(e){} });
     return res.json({ success: true });
   }
   const data = activeBots.get(username);
   if (!data || !data.bot) return res.status(404).json({ error: 'Bot offline' });
-  data.bot.chat(message);
+  try { data.bot.chat(message); } catch(e){}
   res.json({ success: true });
 });
 
@@ -377,15 +375,17 @@ app.post('/api/move', (req, res) => {
 
   targets.forEach((data) => {
     if (data && data.bot) {
-      data.bot.setControlState(direction, true);
-      setTimeout(() => data.bot.setControlState(direction, false), duration);
+      try {
+        data.bot.setControlState(direction, true);
+        setTimeout(() => { if(data.bot) data.bot.setControlState(direction, false); }, duration);
+      } catch(e){}
     }
   });
   res.json({ success: true });
 });
 
-app.listen(PORT, () => {
-  console.log(`[Dark AFK] Running at http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`[Dark AFK] Running on port ${PORT}`);
 
   const savedBots = loadBotsDb();
   for (const [username, config] of Object.entries(savedBots)) {
